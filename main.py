@@ -63,9 +63,8 @@ def get_args_parser():
 
 def main(args, cfg):
     model_dir = cfg["training"]["model_dir"]
-    log_dir = f"{model_dir}/log"
-    log_file = f"run_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
-    log_file = os.path.join(log_dir, log_file)
+    log_name = f"run_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+    log_file = os.path.join(model_dir, log_name)
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
 
@@ -75,8 +74,7 @@ def main(args, cfg):
         logger.remove()
         logger.add(lambda msg: None)
 
-    model_dir = cfg.get("training", {}).get("model_dir", "outputs/islr_model")
-    log_dir = f"{model_dir}/log"
+    model_dir = cfg.get("training", {}).get("model_dir", "outputs/model")
 
     if is_distributed:
         device = torch.device(f"cuda:{local_rank}")
@@ -255,7 +253,7 @@ def main(args, cfg):
             loss_fn=loss_fn,
             print_freq=args.print_freq,
             results_path=f"{model_dir}/test_results.json",
-            log_dir=f"{log_dir}/eval/test",
+            log_file=log_file,
         )
         if rank == 0:
             print(
@@ -283,7 +281,7 @@ def main(args, cfg):
             epoch,
             loss_fn,
             print_freq=args.print_freq,
-            log_dir=f"{log_dir}/train",
+            log_file=log_file,
         )
         scheduler.step()
 
@@ -312,7 +310,7 @@ def main(args, cfg):
             epoch,
             loss_fn,
             print_freq=args.print_freq,
-            log_dir=f"{log_dir}/test",
+            log_file=log_file,
         )
 
         # Save best model
