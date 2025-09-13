@@ -203,7 +203,7 @@ def save_sample_images(inputs, pred, targets, batch_idx, epoch, output_dir):
 
 def save_eval_images(inputs, pred, targets, filenames, epoch, output_dir):
     """Save evaluation images"""
-    save_dir = os.path.join(output_dir, "eval", f"epoch_{epoch}")
+    save_dir = os.path.join(output_dir, "eval")
     os.makedirs(save_dir, exist_ok=True)
 
     for i, filename in enumerate(filenames):
