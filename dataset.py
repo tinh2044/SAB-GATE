@@ -1,4 +1,5 @@
 import os
+import random
 from pathlib import Path
 import torch
 import torch.utils.data as data
@@ -6,7 +7,30 @@ import torchvision.transforms as transforms
 from PIL import Image
 
 
-class LowLightDataset(data.Dataset):
+class PairedTransform:
+    """Custom transform class to ensure input and target are transformed consistently"""
+
+    def __init__(self, transform):
+        self.transform = transform
+
+    def __call__(self, input_img, target_img):
+        # Set seed to ensure same random state
+        seed = random.randint(0, 2**32 - 1)
+
+        # Transform input
+        random.seed(seed)
+        torch.manual_seed(seed)
+        input_transformed = self.transform(input_img)
+
+        # Transform target with same seed
+        random.seed(seed)
+        torch.manual_seed(seed)
+        target_transformed = self.transform(target_img)
+
+        return input_transformed, target_transformed
+
+
+class DebluringDataset(data.Dataset):
     def __init__(self, root, cfg, split="train"):
         self.root = root
         self.cfg = cfg
@@ -25,9 +49,9 @@ class LowLightDataset(data.Dataset):
         self.image_files = self._get_image_files()
 
         # Setup transforms
-        self.transform, self.target_transform = self._get_transforms()
+        self.transform = self._get_transforms()
 
-        print(f"LowLightDataset[{split}] -> {len(self.image_files)} samples")
+        print(f"DebluringDataset[{split}] -> {len(self.image_files)} samples")
         print(
             f"  Input: {self.input_dir} ({len(self._list_files(self.input_dir))} files)"
         )
@@ -68,30 +92,32 @@ class LowLightDataset(data.Dataset):
     def _get_transforms(self):
         """Get image transforms"""
         image_size = self.cfg.get("image_size", 256)
-
         if self.split == "train":
-            transform = transforms.Compose(
+            base_transform = transforms.Compose(
                 [
-                    transforms.Resize((image_size, image_size)),
+                    transforms.Resize((image_size + 20, image_size + 20)),
+                    transforms.RandomCrop((image_size, image_size)),
+                    transforms.RandomRotation(degrees=5, expand=False),
+                    transforms.ColorJitter(
+                        brightness=0.1,
+                        contrast=0.1,
+                        saturation=0.05,
+                        hue=0.02,
+                    ),
                     transforms.ToTensor(),
                 ]
             )
         else:
-            transform = transforms.Compose(
+            base_transform = transforms.Compose(
                 [
                     transforms.Resize((image_size, image_size)),
                     transforms.ToTensor(),
                 ]
             )
 
-        target_transform = transforms.Compose(
-            [
-                transforms.Resize((image_size, image_size)),
-                transforms.ToTensor(),
-            ]
-        )
+        paired_transform = PairedTransform(base_transform)
 
-        return transform, target_transform
+        return paired_transform
 
     def __len__(self):
         return len(self.image_files)
@@ -107,9 +133,8 @@ class LowLightDataset(data.Dataset):
         input_image = Image.open(input_path).convert("RGB")
         target_image = Image.open(target_path).convert("RGB")
 
-        # Apply transforms
-        input_tensor = self.transform(input_image)
-        target_tensor = self.target_transform(target_image)
+        # Apply transforms - using PairedTransform to ensure consistency
+        input_tensor, target_tensor = self.transform(input_image, target_image)
 
         return {
             "input": input_tensor,
@@ -135,9 +160,9 @@ class LowLightDataset(data.Dataset):
 
 def get_training_set(root, cfg):
     """Get training dataset"""
-    return LowLightDataset(root, cfg, split="train")
+    return DebluringDataset(root, cfg, split="train")
 
 
 def get_test_set(root, cfg):
     """Get test dataset"""
-    return LowLightDataset(root, cfg, split="test")
+    return DebluringDataset(root, cfg, split="test")

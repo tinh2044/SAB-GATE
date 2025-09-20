@@ -18,28 +18,45 @@ class DWConv(nn.Module):
         return self.conv(x)
 
 
-class PSDown(nn.Module):
-    """Pixel-unshuffle downsample (r=2 typical)."""
-
-    def __init__(self, r=2):
+class Downsample(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int = 3):
         super().__init__()
-        self.r = r
-        self.op = nn.PixelUnshuffle(r)
+        self.down = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=2,
+            padding=(kernel_size - 1) // 2,
+            bias=True,
+        )
 
-    def forward(self, x):
-        return self.op(x)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.down(x)
 
 
-class PSUp(nn.Module):
-    """Pixel-shuffle upsample (r=2 typical)."""
-
-    def __init__(self, r=2):
+class Upsample(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        scale_factor: float = 2.0,
+        mode: str = "bilinear",
+        align_corners: bool = False,
+    ):
         super().__init__()
-        self.r = r
-        self.op = nn.PixelShuffle(r)
+        self.scale_factor = scale_factor
+        self.mode = mode
+        self.align_corners = align_corners
+        self.proj = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=True)
 
-    def forward(self, x):
-        return self.op(x)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x_up = F.interpolate(
+            x,
+            scale_factor=self.scale_factor,
+            mode=self.mode,
+            align_corners=self.align_corners,
+        )
+        return self.proj(x_up)
 
 
 class SpectralAdaptiveBasis(nn.Module):
@@ -287,16 +304,7 @@ class SABGATEFormer(nn.Module):
             )
             if s < scales - 1:
                 downsamplers.append(
-                    nn.Sequential(
-                        PSDown(2),  # ch -> ch*4, H/2 W/2
-                        nn.Conv2d(
-                            self.chs[s] * 4,
-                            self.chs[s + 1],
-                            kernel_size=3,
-                            padding=1,
-                            bias=True,
-                        ),
-                    )
+                    Downsample(self.chs[s], self.chs[s + 1], kernel_size=3)
                 )
         self.encoder = nn.ModuleList(enc_blocks)
         self.downsamplers = nn.ModuleList(downsamplers)
@@ -319,16 +327,7 @@ class SABGATEFormer(nn.Module):
             )
             if s > 0:
                 upsamplers.append(
-                    nn.Sequential(
-                        nn.Conv2d(
-                            self.chs[s],
-                            self.chs[s - 1] * 4,
-                            kernel_size=3,
-                            padding=1,
-                            bias=True,
-                        ),
-                        PSUp(2),
-                    )
+                    Upsample(self.chs[s], self.chs[s - 1], scale_factor=2.0)
                 )
         self.decoder = nn.ModuleList(dec_blocks)
         self.upsamplers = nn.ModuleList(upsamplers)
