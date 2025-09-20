@@ -39,6 +39,8 @@ def train_one_epoch(
         # Backward pass
         optimizer.zero_grad()
         total_loss.backward()
+        # gradient clipping
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
         # Update metrics
@@ -49,13 +51,17 @@ def train_one_epoch(
             metric_logger.update(**{f"{loss_name}_loss": loss_value.item()})
 
         if eval_train:
-            metrics = compute_metrics(targets, pred_l, args.device)
+            # clamp only for metrics
+            pred_for_metrics = pred_l.clamp(0.0, 1.0)
+            metrics = compute_metrics(targets, pred_for_metrics, args.device)
 
             for metric_name, metric_value in metrics.items():
                 metric_logger.update(**{f"{metric_name}": metric_value})
         if batch_idx % (print_freq * 5) == 0:
+            # clamp only for saving
+            pred_for_save = pred_l.clamp(0.0, 1.0)
             save_sample_images(
-                inputs, pred_l, targets, batch_idx, epoch, args.output_dir
+                inputs, pred_for_save, targets, batch_idx, epoch, args.output_dir
             )
 
     # Gather the stats from all processes

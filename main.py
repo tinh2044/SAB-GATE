@@ -145,7 +145,7 @@ def main(args, cfg):
             model,
             device_ids=[local_rank],
             output_device=local_rank,
-            find_unused_parameters=True,
+            find_unused_parameters=False,
         )
         model_for_params = model.module
     else:
@@ -274,6 +274,9 @@ def main(args, cfg):
     best_ssim = 0.0
 
     for epoch in range(args.start_epoch, args.epochs):
+        # ensure proper shuffling with DDP sampler
+        if is_distributed and train_sampler is not None:
+            train_sampler.set_epoch(epoch)
         if rank == 0:
             logger.info(f"Epoch {epoch} of {args.epochs}")
         train_results = train_one_epoch(

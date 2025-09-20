@@ -357,6 +357,9 @@ class SABGATEFormer(nn.Module):
             self.chs[0], out_chans, kernel_size=3, padding=1, bias=True
         )
 
+        # residual scaling to stabilize training
+        self.res_scale = 0.1
+
         self._init_weights()
 
     def _init_weights(self):
@@ -402,8 +405,8 @@ class SABGATEFormer(nn.Module):
         # refinement + final conv
         out = self.refine(cur + x0)
         out = self.conv_out(out)
-        out = x + out
-        return torch.clamp(out, 0.0, 1.0)
+        # return unclamped; clamp only for metrics/saving
+        return x + self.res_scale * out
 
 
 if __name__ == "__main__":
