@@ -402,8 +402,8 @@ class SABGATEFormer(nn.Module):
         # refinement + final conv
         out = self.refine(cur + x0)
         out = self.conv_out(out)
-        out = torch.clamp(out, 0.0, 1.0)
-        return x + out
+        out = x + out
+        return torch.clamp(out, 0.0, 1.0)
 
 
 if __name__ == "__main__":
