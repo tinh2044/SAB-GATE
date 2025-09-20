@@ -175,11 +175,7 @@ def main(args, cfg):
         print(f"  Total parameters: {model_info['total_params']:,}")
         print(f"  Trainable parameters: {model_info['trainable_params']:,}")
         print(f"  Non-trainable parameters: {model_info['non_trainable_params']:,}")
-
-        if "flops" in model_info:
-            print(f"  FLOPs: {model_info['flops_str']}")
-            print(f"  MACs: {model_info['macs_str']}")
-            print(f"  Parameters (from thop): {model_info['params_str']}")
+        print(f"  FLOPs: {model_info['flops_str']}")
         print()
     optimizer_config = cfg.get("training", {}).get("optimization", {})
     optimizer = build_optimizer(config=optimizer_config, model=model_for_params)
