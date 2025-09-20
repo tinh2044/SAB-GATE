@@ -3,6 +3,7 @@ import torch
 import torch.distributed as dist
 import numpy as np
 from PIL import Image
+from fvcore.nn import FlopCountAnalysis
 
 
 def save_img(image_tensor, filename):
@@ -23,14 +24,12 @@ def count_model_parameters(model):
 def calculate_flops(model, input_shape, device="cpu"):
     """Calculate FLOPs for model"""
     try:
-        from thop import profile
-
         input_tensor = torch.randn(input_shape).to(device)
-        flops, params = profile(model, inputs=(input_tensor,), verbose=False)
-        return flops, params
-    except ImportError:
-        print("thop not installed, skipping FLOPs calculation")
-        return None, None
+        flops = FlopCountAnalysis(model, input_tensor).total()
+        return flops
+    except Exception as e:
+        print(f"Error calculating FLOPs: {e}")
+        return None
 
 
 def get_model_info(model, input_shape, device="cpu"):
@@ -45,13 +44,10 @@ def get_model_info(model, input_shape, device="cpu"):
         "non_trainable_params": non_trainable_params,
     }
 
-    flops, params = calculate_flops(model, input_shape, device)
+    flops = calculate_flops(model, input_shape, device)
     if flops is not None:
         info["flops"] = flops
         info["flops_str"] = f"{flops / 1e9:.2f}G"
-        info["macs"] = flops / 2
-        info["macs_str"] = f"{flops / 2e9:.2f}G"
-        info["params_str"] = f"{params / 1e6:.2f}M"
 
     return info
 

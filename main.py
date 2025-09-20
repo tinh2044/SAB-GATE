@@ -51,7 +51,7 @@ def get_args_parser():
 
     parser.add_argument(
         "--eval_train",
-        action="store_false",
+        action="store_true",
         help="Perform evaluation in training phase",
     )
 
