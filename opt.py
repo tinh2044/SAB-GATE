@@ -14,6 +14,7 @@ def train_one_epoch(
     loss_fn,
     print_freq=10,
     log_file="logs/train.log",
+    eval_train=False,
 ):
     """Train for one epoch"""
     model.train()
@@ -47,7 +48,11 @@ def train_one_epoch(
         for loss_name, loss_value in loss_dict.items():
             metric_logger.update(**{f"{loss_name}_loss": loss_value.item()})
 
-        # Save sample images
+        if eval_train:
+            metrics = compute_metrics(targets, pred_l, args.device)
+
+            for metric_name, metric_value in metrics.items():
+                metric_logger.update(**{f"{metric_name}": metric_value})
         if batch_idx % (print_freq * 5) == 0:
             save_sample_images(
                 inputs, pred_l, targets, batch_idx, epoch, args.output_dir

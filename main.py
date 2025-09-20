@@ -50,6 +50,12 @@ def get_args_parser():
     parser.add_argument("--num_workers", default=4, type=int)
 
     parser.add_argument(
+        "--eval_train",
+        action="store_false",
+        help="Perform evaluation in training phase",
+    )
+
+    parser.add_argument(
         "--cfg",
         type=str,
         default="configs/lol.yaml",
@@ -269,6 +275,7 @@ def main(args, cfg):
         )
     start_time = time.time()
     best_psnr = 0.0
+    best_ssim = 0.0
 
     for epoch in range(args.start_epoch, args.epochs):
         if rank == 0:
@@ -282,6 +289,7 @@ def main(args, cfg):
             loss_fn,
             print_freq=args.print_freq,
             log_file=log_file,
+            eval_train=args.eval_train,
         )
         scheduler.step()
 
@@ -302,16 +310,18 @@ def main(args, cfg):
             )
         print()
 
-        # Evaluate
-        test_results = evaluate_fn(
-            args,
-            test_dataloader,
-            model,
-            epoch,
-            loss_fn,
-            print_freq=args.print_freq,
-            log_file=log_file,
-        )
+        if not args.eval_train:
+            test_results = evaluate_fn(
+                args,
+                test_dataloader,
+                model,
+                epoch,
+                loss_fn,
+                print_freq=args.print_freq,
+                log_file=log_file,
+            )
+        else:
+            test_results = train_results
 
         # Save best model
         if test_results["psnr"] > best_psnr:
@@ -327,8 +337,26 @@ def main(args, cfg):
                     },
                     checkpoint_path,
                 )
+        if test_results["ssim"] > best_ssim:
+            best_ssim = test_results["ssim"]
+            checkpoint_paths = [output_dir / "best_ssim_checkpoint.pth"]
+            for checkpoint_path in checkpoint_paths:
+                utils.save_on_master(
+                    {
+                        "model_state_dict": model.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "scheduler_state_dict": scheduler.state_dict(),
+                        "epoch": epoch,
+                    },
+                    checkpoint_path,
+                )
         if rank == 0:
-            print(f"* TEST PSNR {test_results['psnr']:.3f} Best PSNR {best_psnr:.3f}")
+            logger.info(
+                f"TEST PSNR {test_results['psnr']:.3f}, Best PSNR {best_psnr:.3f}"
+            )
+            logger.info(
+                f"TEST SIMM {test_results['ssim']:.3f}, Best SIMM {best_ssim:.3f}"
+            )
 
         # Log results
         log_results = {
